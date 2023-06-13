@@ -1,3 +1,5 @@
+import random
+
 from torch.utils.data import Dataset
 import json
 import h5py
@@ -9,6 +11,8 @@ from PIL import Image
 import math
 import pandas as pd
 from tqdm import tqdm
+
+from src.snipper import Snipper
 
 default_cities = {
     'train': ["trondheim", "london", "boston", "melbourne", "amsterdam", "helsinki",
@@ -431,6 +435,135 @@ class MSLSDataSet(Dataset):
         sample = {"im0": self.read_image(self.queries[idx]), "im1": self.read_image(self.matches[idx]),
                   "label": self.sims[idx]}
         return sample
+
+
+class MSLSDataSetUnlabeled(Dataset):
+    def __init__(self, root_dir, cities, transform=None, cache_size=10000):
+        self.root_dir = root_dir
+        self.images = None
+        self.nr_images = 0
+        self.transform = transform
+        self.id_rand = None
+        self.cities = default_cities[cities]
+        self.city_starting_idx = {}
+        self.cache_start = 0
+        self.cache_size = cache_size
+        self.snipper = Snipper()
+
+        self.load_cities()
+        self.load_cache()
+
+    def load_cities(self):
+        image_index = 0
+        for c in self.cities:
+            self.city_starting_idx[c] = image_index
+            # For now, we only include query images
+            q_file = self.root_dir + "train_val/" + c + "/query.json"
+            with open(q_file) as f:
+                q_dict = json.load(f)
+                image_index += len(q_dict["im_paths"])
+        self.nr_images = image_index
+
+    def load_cache(self):
+        if self.cache_start == 0:
+            self.id_rand = torch.randperm(self.nr_images, dtype=torch.int)
+        self.images = []
+        cached_ids = sorted(self.id_rand[self.cache_start:self.cache_start + self.cache_size])
+        # Retrieve index that should be retrieved from next city:
+        included_cities, transition_idx = self.find_city_transitions(cached_ids)
+
+        c_next_ind = 0
+        c = ""
+        q_pano = None
+        q_ims = None
+        for idx in tqdm(cached_ids, desc="loading cache"):
+            # Transition to next city:
+            if not c_next_ind == len(included_cities) and idx == transition_idx[c_next_ind]:
+                c = included_cities[c_next_ind]
+                c_next_ind += 1
+                qfile = self.root_dir + "train_val/" + c + "/query.json"
+                q_ims = BaseDataSet.load_idx(qfile)
+                q_pano = np.genfromtxt(self.root_dir + "train_val/" + c + "/query/raw.csv", dtype=bool, skip_header=1,
+                                       delimiter=",")[:, -1]
+            
+            city_qidx = idx - self.city_starting_idx[c]
+            if q_pano[city_qidx]:  # skip panorama
+                continue
+            self.images.append(q_ims[city_qidx])
+
+        self.cache_start += self.cache_size
+        if self.cache_start >= self.nr_images:
+            self.cache_start = 0
+        self.images = np.asarray(self.images)
+
+    def find_city_transitions(self, cached_ids):
+        included_cities_ids = list(self.city_starting_idx.values())
+        next_city_ind = list(np.searchsorted(cached_ids, included_cities_ids))
+        # Remove cities that do not have images in cache
+        city_skip_ind = [i for i in range(len(next_city_ind) - 1) if next_city_ind[i] == next_city_ind[i + 1]]
+        city_skip_ind += [i for i in range(len(next_city_ind)) if next_city_ind[i] > len(cached_ids)]
+        included_cities = self.cities
+        for i in sorted(city_skip_ind, reverse=True):
+            del next_city_ind[i]
+            del included_cities_ids[i]
+            del included_cities[i]
+        transition_idx = [cached_ids[i] for i in next_city_ind]
+        return included_cities, transition_idx
+
+    def read_image(self, impath):
+        img_name = os.path.join(self.root_dir,
+                                impath)
+        image = Image.open(img_name).convert('RGB')
+
+        #if self.transform:
+        #    image = self.transform(image)
+        #if image.shape[0] == 1:
+        #    image = image.repeat(3, 1, 1)
+        return image
+
+    def create_pair(self, image):
+        s = np.random.choice(np.arange(3), p=[0.5,0.25,0.25])
+        iou = 0
+        if s == 0:  # positive
+            iou = 0.5 + np.random.random() * 0.5
+        elif s == 1:  # soft negative
+            iou = np.random.random() * 0.5
+        elif s == 2:  # hard negative
+            iou = 0
+        im0, im1 = self.snipper.create_snippets(image, iou)
+
+        if self.transform:
+            im0 = self.transform(im0)
+            im1 = self.transform(im1)
+        if im0.shape[0] == 1:
+            im0 = im0.repeat(3, 1, 1)
+            im1 = im1.repeat(3, 1, 1)
+        return im0, im1, iou
+
+    def create_rotations(self, image):
+        rotated_images = [image, image.rotate(90), image.rotate(180), image.rotate(270)]
+        rotations = torch.randperm(4)
+        rotated_images = [rotated_images[i] for i in rotations]
+        if self.transform:
+            rotated_images = [self.transform(im) for im in rotated_images]
+            if rotated_images[0].shape[0] == 1:
+                rotated_images = [im.repeat(3, 1, 1) for im in rotated_images]
+        return torch.stack(rotated_images), rotations
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        image = self.read_image(self.images[idx])
+        crop0, crop1, sim = self.create_pair(image)
+        image_rot, rotations = self.create_rotations(image)
+        sample = {"im0": crop0,
+                  "im1": crop1,
+                  "imrot": image_rot,
+                  "label_c": sim,
+                  "label_p": rotations}
+        return sample
+
 
 class ListImageDataSet(BaseDataSet):
     def __init__(self, image_list, transform=None, root_dir=None):

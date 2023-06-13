@@ -34,7 +34,7 @@ class TrainParser():
         self.parser.add_argument('--result_dir', type=str, default='./results', help='predictions and results are saved here')
         self.parser.add_argument('--use_gpu', help='Use GPU mode',action='store_true')
         self.parser.add_argument('--save_freq', type=int, default=1, help='save frequency in steps')
-        self.parser.add_argument('--dataset', type=str, default='soft_MSLS', help='[binary_MSLS|soft_MSLS]')
+        self.parser.add_argument('--dataset', type=str, default='unlabeled_MSLS', help='[binary_MSLS|soft_MSLS|unlabeled_MSLS]')
         self.parser.add_argument('--pool', type=str, default='GeM', help='Global pool layer  max|avg|GeM')
         self.parser.add_argument('--p', required=False, type=int, default=3, help='P parameter for GeM pool')
         self.parser.add_argument('--norm', type=str, default="L2", help='Norm layer')
@@ -59,7 +59,7 @@ def val(params, model, image_t, best_metric, reference_metric="recall@5", metric
         os.makedirs(save_dir)
     is_best = False
     model.eval()
-    ret_file = save_dir+ "/" + params.name + "_retrieved.csv"
+    ret_file = save_dir + "/" + params.name + "_retrieved.csv"
     with open(ret_file, "w"):
         pass
     for c in val_cities:
@@ -97,24 +97,14 @@ def train(params):
     image_size = [int(x) for x in (params.image_size).split(",")]
     best_metric = 0
     ref_metric = "recall@5"
-    print("training with images of size",image_size[0],image_size[1])
-    if image_size[0] == image_size[1]: #If we want to resize to square, we do resize+crop
-        image_t = ttf.Compose([ttf.Resize(size=(image_size[0])),
-                               ttf.CenterCrop(size=(image_size[0])),
-                               ttf.ToTensor(),
-                               ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                               ])
-    else:        
-        image_t = ttf.Compose([ttf.Resize(size=(image_size[0], image_size[1])),
-                               ttf.ToTensor(),
-                               ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                               ])
+    print("training with images of size", image_size[0], image_size[1])
+    image_t = preprocess_transformations(image_size)
     # writer = SummaryWriter('runs/'+params.name+"_"+datetime.now().isoformat("-").split(".")[0].replace(":","-"))
-    mode = "siamese"
-    model = create_model(params.backbone, params.pool, last_layer=params.last_layer, norm=params.norm, p_gem=params.p)
+    mode = "siamese_predictive"
+    model = create_model(params.backbone, params.pool, last_layer=params.last_layer, norm=params.norm, p_gem=params.p, mode=mode)
     if torch.cuda.is_available():
         model = model.cuda()
-    loss = ContrastiveLoss(params.margin)
+    loss = ContrastivePredictiveLoss(params.margin)
     print(params.dataset)
     dataloader = create_msls_dataloader(params.dataset, params.root_dir, params.cities, transform=image_t,
                                         batch_size=params.batch_size, model=model)
@@ -132,11 +122,14 @@ def train(params):
     # metrics, is_best = val(params, model, image_t, best_metric, reference_metric=ref_metric)
     # best_metric = metrics[ref_metric]
     best_metric = 0
-    # for step in tqdm(range(init_step, params.steps), desc="Steps"):
     for step in range(init_step, params.steps):
+    # for step in tqdm(range(init_step, params.steps), desc="Steps"):
         # step
         e_iteration = 0
         for i, data in enumerate(dataloader):
+            # Reshape rotation batch:
+            data["imrot"] = data["imrot"].view(-1, *data["imrot"].shape[2:])
+            data["label_p"] = data["label_p"].view(-1)
             e_iteration += params.batch_size
 
             mini_batch_size = 2
@@ -145,13 +138,17 @@ def train(params):
             for j in range(accum_iterations):
                 a = j * mini_batch_size
                 b = a + mini_batch_size
+                c = j * 4
+                d = c + 4 * mini_batch_size
 
                 if torch.cuda.is_available():  # params.use_gpu:
-                    x0, x1 = model(data["im0"][a:b,:].cuda(), data["im1"][a:b,:].cuda())
-                    error = loss(x0, x1, (data["label"][a:b]).cuda())
+                    x_c0, x_c1, x_p = model(data["im0"][a:b, :].cuda(), data["im1"][a:b, :].cuda(),
+                                            data["imrot"][c:d, :].cuda())
+                    error = loss(x_c0, x_c1, x_p, data["label_c"][a:b].cuda(), data["label_p"][c:d].cuda())
                 else:
-                    x0, x1 = model(data["im0"][a:b,:], data["im1"][a:b,:])
-                    error = loss(x0, x1, data["label"][a:b])
+                    x_c0, x_c1, x_p = model(data["im0"][a:b, :], data["im1"][a:b, :], data["imrot"][c:d, :])
+                    error = loss(x_c0, x_c1, x_p, data["label_c"][a:b], data["label_p"][c:d])
+
                 null_losses = torch.sum(error==0).item()/len(error)
                         
                 error = torch.mean(error) / accum_iterations
@@ -193,6 +190,21 @@ def train(params):
     # writer.close()
     print("Done. Best results on val:")
     print(best_metrics)
+
+
+def preprocess_transformations(image_size):
+    if image_size[0] == image_size[1]:  # If we want to resize to square, we do resize+crop
+        image_t = ttf.Compose([ttf.Resize(size=(image_size[0])),
+                               ttf.CenterCrop(size=(image_size[0])),
+                               ttf.ToTensor(),
+                               ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                               ])
+    else:
+        image_t = ttf.Compose([ttf.Resize(size=(image_size[0], image_size[1])),
+                               ttf.ToTensor(),
+                               ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                               ])
+    return image_t
 
 
 if __name__ == "__main__":

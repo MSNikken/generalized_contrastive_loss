@@ -22,6 +22,8 @@ def create_msls_dataloader(dataset, root_dir, cities, transform, batch_size,mode
         ds = MSLSDataSet(root_dir, cities, ds_key="sim", transform=transform)
     elif dataset == "soft_MSLS":
         ds = MSLSDataSet(root_dir, cities, ds_key="fov", transform=transform)
+    elif dataset == "unlabeled_MSLS":
+        ds = MSLSDataSetUnlabeled(root_dir, cities, transform=transform)
     return DataLoader(ds, batch_size=batch_size, num_workers=4, shuffle=True)
 
 
@@ -71,7 +73,9 @@ def create_model(name, pool, last_layer=None, norm=None, p_gem=3, mode="siamese"
         else:
             print(aux, c._get_name(), "IS TRAINED")
         aux += 1
-    if mode=="siamese":
+    if mode == "siamese":
         return SiameseNet(backbone, pool, norm=norm, p=p_gem)
+    elif mode == "siamese_predictive":
+        return SiamesePredictiveNet(backbone, pool, norm=norm, p=p_gem)
     else:
         return BaseNet(backbone, pool, norm=norm, p=p_gem)
