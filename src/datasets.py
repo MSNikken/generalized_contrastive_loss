@@ -1,5 +1,3 @@
-import random
-
 from torch.utils.data import Dataset
 import json
 import h5py
@@ -8,11 +6,11 @@ import torch
 import numpy as np
 import os
 from PIL import Image
-import math
+
 import pandas as pd
 from tqdm import tqdm
 
-from src.snipper import Snipper
+from src.augment import Snipper
 
 default_cities = {
     'train': ["trondheim", "london", "boston", "melbourne", "amsterdam", "helsinki",
@@ -418,7 +416,6 @@ class MSLSDataSet(Dataset):
         return len(self.queries)
 
     def read_image(self, impath):
-        
         img_name = os.path.join(self.root_dir,
                                 impath)
         image = Image.open(img_name).convert('RGB')
@@ -438,7 +435,7 @@ class MSLSDataSet(Dataset):
 
 
 class MSLSDataSetUnlabeled(Dataset):
-    def __init__(self, root_dir, cities, transform=None, cache_size=10000):
+    def __init__(self, root_dir, cities, transform=None, cache_size=10):
         self.root_dir = root_dir
         self.images = None
         self.nr_images = 0
@@ -448,6 +445,7 @@ class MSLSDataSetUnlabeled(Dataset):
         self.city_starting_idx = {}
         self.cache_start = 0
         self.cache_size = cache_size
+        self.new_epoch = True
         self.snipper = Snipper()
 
         self.load_cities()
@@ -467,6 +465,9 @@ class MSLSDataSetUnlabeled(Dataset):
     def load_cache(self):
         if self.cache_start == 0:
             self.id_rand = torch.randperm(self.nr_images, dtype=torch.int)
+            self.new_epoch = True
+        else:
+            self.new_epoch = False
         self.images = []
         cached_ids = sorted(self.id_rand[self.cache_start:self.cache_start + self.cache_size])
         # Retrieve index that should be retrieved from next city:
@@ -514,11 +515,6 @@ class MSLSDataSetUnlabeled(Dataset):
         img_name = os.path.join(self.root_dir,
                                 impath)
         image = Image.open(img_name).convert('RGB')
-
-        #if self.transform:
-        #    image = self.transform(image)
-        #if image.shape[0] == 1:
-        #    image = image.repeat(3, 1, 1)
         return image
 
     def create_pair(self, image):

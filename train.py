@@ -1,6 +1,5 @@
 import torchvision.transforms as ttf
 from src.factory import *
-import torch
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 import shutil
@@ -67,15 +66,15 @@ def val(params, model, image_t, best_metric, reference_metric="recall@5", metric
         m_raw_file = params.root_dir+"train_val/"+c+"/database/raw.csv"
         q_idx_file = params.root_dir+"train_val/"+c+"/query.json"
         m_idx_file = params.root_dir+"train_val/"+c+"/database.json"
-        gt_file = params.root_dir+"train_val/"+c+"_gt.h5"
+
         q_dl = create_dataloader("test", params.root_dir, q_idx_file, None, image_t, 2)
         m_dl = create_dataloader("test", params.root_dir, m_idx_file, None, image_t, 2)
 
         q_feats_file = save_dir + "/" + params.name + "_"+c+ "_query_features.npy"
-        q_feats = extract_features(q_dl, model, model.feature_length,q_feats_file)
+        extract_features(q_dl, model, model.feature_length, q_feats_file)
         m_feats_file = save_dir + "/" + params.name + "_"+c+ "_database_features.npy"
-        m_feats = extract_features(m_dl, model, model.feature_length,m_feats_file)
-        extract_msls_top_k(m_feats_file,q_feats_file, m_idx_file, q_idx_file, ret_file, 25, m_raw_file)
+        extract_features(m_dl, model, model.feature_length, m_feats_file)
+        extract_msls_top_k(m_feats_file, q_feats_file, m_idx_file, q_idx_file, ret_file, 25, m_raw_file)
 
     res_file = save_dir + "/" + params.name + "_val_results.txt"
     metrics = validate(ret_file, params.root_dir, res_file)
@@ -108,7 +107,7 @@ def train(params):
     print(params.dataset)
     dataloader = create_msls_dataloader(params.dataset, params.root_dir, params.cities, transform=image_t,
                                         batch_size=params.batch_size, model=model)
-    
+    augmentor = Augmentor()
     # if params.use_gpu:
     if torch.cuda.is_available():
         model = model.cuda()
@@ -126,14 +125,18 @@ def train(params):
     # for step in tqdm(range(init_step, params.steps), desc="Steps"):
         # step
         e_iteration = 0
+        #while step == init_step or not dataloader.dataset.new_epoch:  # Load new cache until epoch complete
         for i, data in enumerate(dataloader):
             # Reshape rotation batch:
             data["imrot"] = data["imrot"].view(-1, *data["imrot"].shape[2:])
             data["label_p"] = data["label_p"].view(-1)
             e_iteration += params.batch_size
 
+            # Apply augmentations on batch
+            data["im1"] = augmentor.apply_augmentations(data["im1"])
+
             mini_batch_size = 2
-            accum_iterations = int(data["im0"].shape[0]/mini_batch_size)
+            accum_iterations = int(params.batch_size/mini_batch_size)
 
             for j in range(accum_iterations):
                 a = j * mini_batch_size
@@ -150,7 +153,7 @@ def train(params):
                     error = loss(x_c0, x_c1, x_p, data["label_c"][a:b], data["label_p"][c:d])
 
                 null_losses = torch.sum(error==0).item()/len(error)
-                        
+
                 error = torch.mean(error) / accum_iterations
                 # writer.add_scalar('Debug/null_losses', null_losses, total_iterations)
                 error.backward()
@@ -159,34 +162,35 @@ def train(params):
 
             # Visualize
             if i % params.display_freq == 0:
-                print("Step %d, Iteration %d, Loss %.4f, Null loss %.4f" % (step, e_iteration, error, null_losses))
+                print("Epoch %d, Iteration %d, Train Loss %.4f, Null loss %.4f" % (step + 1, e_iteration,
+                                                                                   error, null_losses))
             optimizer.step()
             optimizer.zero_grad()
-            
-        metrics, is_best = val(params, model, image_t, best_metric, reference_metric=ref_metric)
-        # Save
-        if step % params.save_freq == 0:
-            save_path = params.snapshot_dir + "/" + params.name + ".pth"
-        
-            torch.save({'step': step,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'scheduler': scheduler.state_dict()
-                        }, save_path)
-                
-        if is_best:
-            best_metric = metrics[ref_metric]
-            best_metrics = metrics
-            save_path = params.snapshot_dir + "/" + params.name +"_best.pth"
-        
-            torch.save({'step': step,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'scheduler': scheduler.state_dict()
-                        }, save_path)
 
-        scheduler.step()
-        dataloader.dataset.load_pairs()
+            metrics, is_best = val(params, model, image_t, best_metric, reference_metric=ref_metric)
+            # Save
+            if step % params.save_freq == 0:
+                save_path = params.snapshot_dir + "/" + params.name + ".pth"
+
+                torch.save({'step': step,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer': optimizer.state_dict(),
+                            'scheduler': scheduler.state_dict()
+                            }, save_path)
+
+            if is_best:
+                best_metric = metrics[ref_metric]
+                best_metrics = metrics
+                save_path = params.snapshot_dir + "/" + params.name +"_best.pth"
+
+                torch.save({'step': step,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer': optimizer.state_dict(),
+                            'scheduler': scheduler.state_dict()
+                            }, save_path)
+
+            scheduler.step()
+            dataloader.dataset.load_cache()
     # writer.close()
     print("Done. Best results on val:")
     print(best_metrics)
@@ -194,13 +198,13 @@ def train(params):
 
 def preprocess_transformations(image_size):
     if image_size[0] == image_size[1]:  # If we want to resize to square, we do resize+crop
-        image_t = ttf.Compose([ttf.Resize(size=(image_size[0])),
+        image_t = ttf.Compose([ttf.Resize(size=(image_size[0]), antialias=True),
                                ttf.CenterCrop(size=(image_size[0])),
                                ttf.ToTensor(),
                                ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                                ])
     else:
-        image_t = ttf.Compose([ttf.Resize(size=(image_size[0], image_size[1])),
+        image_t = ttf.Compose([ttf.Resize(size=(image_size[0], image_size[1]), antialias=True),
                                ttf.ToTensor(),
                                ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                                ])

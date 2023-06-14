@@ -1,4 +1,6 @@
 import random as rnd
+import kornia.augmentation as K
+import torchvision.transforms as ttf
 
 class Snipper:
     def create_displacement(self, iou):
@@ -46,3 +48,22 @@ class Snipper:
         snippet1 = image.crop(snippet1_coords)
         snippet2 = image.crop(snippet2_coords)
         return snippet1, snippet2
+
+
+class Augmentor:
+    def __init__(self):
+        self.augmentations = [K.RandomPlanckianJitter(p=0.8, mode='blackbody', keepdim=True),
+                              K.ColorJiggle(p=0.5),
+                              K.RandomPlasmaBrightness(p=0.5),
+                              K.RandomPlasmaContrast(p=0.5),
+                              K.RandomGrayscale(p=0.5),
+                              K.RandomBoxBlur(p=0.5),
+                              K.RandomChannelShuffle(p=0.5),
+                              K.RandomMotionBlur(p=0.3, kernel_size=3, angle=3, direction=0.1),
+                              K.RandomSolarize(p=0.5)]
+        self.normalize = ttf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    def apply_augmentations(self, images):
+        for aug in self.augmentations:
+            images = aug(images)
+        return self.normalize(images)

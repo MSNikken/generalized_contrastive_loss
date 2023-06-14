@@ -8,9 +8,9 @@ import numpy as np
 
 import os
 import sys
-# if 'MAPILLARY_ROOT' in os.environ:
-#sys.path.append(os.environ['MAPILLARY_ROOT'])
-sys.path.append("C:\\Users\\User\\Documents\\UTwente\\ROB\\ROB1\\Advanced Computer Vision and Pater Recognition\\generalized_contrastive_loss\\src\\mapillary_sls")
+#if 'MAPILLARY_ROOT' in os.environ:
+sys.path.append(os.environ['MAPILLARY_ROOT'])
+#sys.path.append("C:\\Users\\User\\Documents\\UTwente\\ROB\\ROB1\\Advanced Computer Vision and Pater Recognition\\generalized_contrastive_loss\\src\\mapillary_sls")
 
 from mapillary_sls.datasets.msls import MSLS
 from mapillary_sls.utils.eval import eval
