@@ -76,6 +76,6 @@ def create_model(name, pool, last_layer=None, norm=None, p_gem=3, mode="siamese"
     if mode == "siamese":
         return SiameseNet(backbone, pool, norm=norm, p=p_gem)
     elif mode == "siamese_predictive":
-        return SiamesePredictiveNet(backbone, pool, norm=norm, p=p_gem)
+        return SiamesePredictiveNet(backbone, output_dim, pool, norm=norm, p=p_gem)
     else:
         return BaseNet(backbone, pool, norm=norm, p=p_gem)

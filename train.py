@@ -1,4 +1,6 @@
 import torchvision.transforms as ttf
+
+from src.augment import Augmentor
 from src.factory import *
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
@@ -171,7 +173,8 @@ def train(params):
             # Save
             if step % params.save_freq == 0:
                 save_path = params.snapshot_dir + "/" + params.name + ".pth"
-
+                if not os.path.exists(params.snapshot_dir):
+                    os.makedirs(params.snapshot_dir)
                 torch.save({'step': step,
                             'model_state_dict': model.state_dict(),
                             'optimizer': optimizer.state_dict(),

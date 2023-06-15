@@ -8,9 +8,9 @@ import numpy as np
 
 import os
 import sys
+
 #if 'MAPILLARY_ROOT' in os.environ:
 sys.path.append(os.environ['MAPILLARY_ROOT'])
-#sys.path.append("C:\\Users\\User\\Documents\\UTwente\\ROB\\ROB1\\Advanced Computer Vision and Pater Recognition\\generalized_contrastive_loss\\src\\mapillary_sls")
 
 from mapillary_sls.datasets.msls import MSLS
 from mapillary_sls.utils.eval import eval
@@ -74,4 +74,17 @@ def validate(prediction, msls_root, result_file, ks=[1, 5, 10, 20]):
     return metrics
 
 
+if __name__== '__main__':
+    # FOR DEBUGGING PURPOSES
+    prediction = "./results/testexp_retrieved.csv"
+    msls_root = "../../data/"
+    result_file = "./results/testexp_val_results.txt"
+    #metrics = validate(prediction, msls_root, result_file)
+    m_feats_file = "./results/testexp_cph_database_features.npy"
+    q_feats_file = "./results/testexp_cph_query_features.npy"
+    m_idx_file = "../../data/train_val/cph/database.json"
+    q_idx_file = "../../data/train_val/cph/query.json"
+    ret_file = "./results/testexp_retrieved.csv"
+    m_raw_file = "../../data/train_val/cph/database/raw.csv"
+    #extract_msls_top_k(m_feats_file, q_feats_file, m_idx_file, q_idx_file, ret_file, 25, m_raw_file)
 

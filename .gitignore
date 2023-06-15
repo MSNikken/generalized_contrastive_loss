@@ -1,6 +1,8 @@
-models/*
-results/*
-sandbox*
+src/models/*
+src/results/*
+src/sandbox*
+dataverse_files/
 train_msls.py
+venv/
 __*
 eval_msls*

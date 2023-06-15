@@ -74,26 +74,33 @@ class Predictor(nn.Module):
 
 
 class Projector(nn.Module):
-    def __init__(self, in_features=2048, out_features=1024):
+    def __init__(self, in_features=2048, out_features=1024, norm=None):
         super(Projector, self).__init__()
         self.linear = nn.Linear(in_features, out_features)
-        self.norm = nn.BatchNorm1d(out_features)
+        self.batchnorm = nn.BatchNorm1d(out_features)
         self.activation = nn.ReLU()
+        self.norm = norm
 
     def forward(self, x):
         x = self.linear(x)
-        x = self.norm(x)
-        return self.activation(x)
+        x = self.batchnorm(x)
+        x = self.activation(x)
+        if self.norm == "L2":
+            x = nn.functional.normalize(x)
+        return x
 
 
 class SiamesePredictiveNet(BaseNet):
-    def __init__(self, backbone, global_pool=None, poolkernel=7, norm=None, p=3):
+    def __init__(self, backbone, backbone_out_dim, global_pool=None, poolkernel=7, norm=None, p=3):
         super(SiamesePredictiveNet, self).__init__(backbone, global_pool, poolkernel, norm=norm, p=p)
-        self.predictor = Predictor()
-        self.projector = Projector()
+        self.feature_length = 1024
+        self.predictor = Predictor(in_features=backbone_out_dim)
+        self.projector = Projector(in_features=backbone_out_dim, out_features=self.feature_length, norm=norm)
 
     def forward_single(self, x0):
-        return super(SiamesePredictiveNet, self).forward(x0)
+        #return super(SiamesePredictiveNet, self).forward(x0)
+        out = self.projector(super(SiamesePredictiveNet, self).forward(x0))
+        return out
 
     def forward(self, x_c0, x_c1, x_p):
         out_c0 = self.projector(super(SiamesePredictiveNet, self).forward(x_c0))

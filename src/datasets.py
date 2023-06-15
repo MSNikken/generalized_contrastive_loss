@@ -435,7 +435,7 @@ class MSLSDataSet(Dataset):
 
 
 class MSLSDataSetUnlabeled(Dataset):
-    def __init__(self, root_dir, cities, transform=None, cache_size=10):
+    def __init__(self, root_dir, cities, transform=None, cache_size=10000):
         self.root_dir = root_dir
         self.images = None
         self.nr_images = 0
@@ -518,7 +518,7 @@ class MSLSDataSetUnlabeled(Dataset):
         return image
 
     def create_pair(self, image):
-        s = np.random.choice(np.arange(3), p=[0.5,0.25,0.25])
+        s = np.random.choice(np.arange(3), p=[0.5, 0.25, 0.25])
         iou = 0
         if s == 0:  # positive
             iou = 0.5 + np.random.random() * 0.5
