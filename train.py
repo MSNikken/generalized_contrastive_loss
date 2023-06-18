@@ -138,7 +138,7 @@ def train(params):
             data["im1"] = augmentor.apply_augmentations(data["im1"])
 
             mini_batch_size = 2
-            accum_iterations = int(params.batch_size/mini_batch_size)
+            accum_iterations = int(data["im0"].shape[0]/mini_batch_size) # Find actual nr im in current batch
 
             for j in range(accum_iterations):
                 a = j * mini_batch_size
@@ -154,7 +154,7 @@ def train(params):
                     x_c0, x_c1, x_p = model(data["im0"][a:b, :], data["im1"][a:b, :], data["imrot"][c:d, :])
                     error = loss(x_c0, x_c1, x_p, data["label_c"][a:b], data["label_p"][c:d])
 
-                null_losses = torch.sum(error==0).item()/len(error)
+                null_losses = torch.sum(error == 0).item()/len(error)
 
                 error = torch.mean(error) / accum_iterations
                 # writer.add_scalar('Debug/null_losses', null_losses, total_iterations)
@@ -164,7 +164,7 @@ def train(params):
 
             # Visualize
             if i % params.display_freq == 0:
-                print("Epoch %d, Iteration %d, Train Loss %.4f, Null loss %.4f" % (step + 1, e_iteration,
+                print("Step %d, Iteration %d, Train Loss %.4f, Null loss %.4f" % (step + 1, e_iteration,
                                                                                    error, null_losses))
             optimizer.step()
             optimizer.zero_grad()
