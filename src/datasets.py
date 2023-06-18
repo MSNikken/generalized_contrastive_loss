@@ -18,6 +18,7 @@ default_cities = {
               "budapest", "austin", "berlin", "ottawa", "phoenix", "goa", "amman", "nairobi", "manila"],
     'toy': ["amman"],
     'ACVPR': ["amman", "boston", "london", "manila", "zurich"],
+    'ACVPR_reduced': ["amman", "boston"],
     'val': ["cph", "sf"],
     'test': ["miami", "athens", "buenosaires", "stockholm", "bengaluru", "kampala"]
 }
