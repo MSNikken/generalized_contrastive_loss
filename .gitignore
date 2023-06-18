@@ -4,5 +4,7 @@ src/sandbox*
 dataverse_files/
 train_msls.py
 venv/
+.idea
+*.pth
 __*
 eval_msls*
