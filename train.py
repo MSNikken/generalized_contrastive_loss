@@ -35,6 +35,7 @@ class TrainParser():
         self.parser.add_argument('--result_dir', type=str, default='./results', help='predictions and results are saved here')
         self.parser.add_argument('--use_gpu', help='Use GPU mode',action='store_true')
         self.parser.add_argument('--save_freq', type=int, default=1, help='save frequency in steps')
+        self.parser.add_argument('--val_freq', type=int, default=1, help='val frequency in steps')
         self.parser.add_argument('--dataset', type=str, default='unlabeled_MSLS', help='[binary_MSLS|soft_MSLS|unlabeled_MSLS]')
         self.parser.add_argument('--pool', type=str, default='GeM', help='Global pool layer  max|avg|GeM')
         self.parser.add_argument('--p', required=False, type=int, default=3, help='P parameter for GeM pool')
@@ -169,7 +170,7 @@ def train(params):
             optimizer.step()
             optimizer.zero_grad()
 
-            metrics, is_best = val(params, model, image_t, best_metric, reference_metric=ref_metric)
+
             # Save
             if step % params.save_freq == 0:
                 save_path = params.snapshot_dir + "/" + params.name + ".pth"
@@ -180,17 +181,19 @@ def train(params):
                             'optimizer': optimizer.state_dict(),
                             'scheduler': scheduler.state_dict()
                             }, save_path)
+            # Val
+            if step % params.val_freq == 0:
+                metrics, is_best = val(params, model, image_t, best_metric, reference_metric=ref_metric)
+                if is_best:
+                    best_metric = metrics[ref_metric]
+                    best_metrics = metrics
+                    save_path = params.snapshot_dir + "/" + params.name +"_best.pth"
 
-            if is_best:
-                best_metric = metrics[ref_metric]
-                best_metrics = metrics
-                save_path = params.snapshot_dir + "/" + params.name +"_best.pth"
-
-                torch.save({'step': step,
-                            'model_state_dict': model.state_dict(),
-                            'optimizer': optimizer.state_dict(),
-                            'scheduler': scheduler.state_dict()
-                            }, save_path)
+                    torch.save({'step': step,
+                                'model_state_dict': model.state_dict(),
+                                'optimizer': optimizer.state_dict(),
+                                'scheduler': scheduler.state_dict()
+                                }, save_path)
 
             scheduler.step()
             dataloader.dataset.load_cache()
