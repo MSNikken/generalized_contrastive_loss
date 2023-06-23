@@ -504,7 +504,7 @@ class MSLSDataSetUnlabeled(Dataset):
         next_city_ind = list(np.searchsorted(cached_ids, included_cities_ids))
         # Remove cities that do not have images in cache
         city_skip_ind = [i for i in range(len(next_city_ind) - 1) if next_city_ind[i] == next_city_ind[i + 1]]
-        city_skip_ind += [i for i in range(len(next_city_ind)) if next_city_ind[i] > len(cached_ids)]
+        city_skip_ind += [i for i in range(len(next_city_ind)) if next_city_ind[i] >= len(cached_ids)]
         included_cities = self.cities
         for i in sorted(city_skip_ind, reverse=True):
             del next_city_ind[i]
