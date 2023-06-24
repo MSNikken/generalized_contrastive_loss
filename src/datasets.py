@@ -505,7 +505,7 @@ class MSLSDataSetUnlabeled(Dataset):
         # Remove cities that do not have images in cache
         city_skip_ind = [i for i in range(len(next_city_ind) - 1) if next_city_ind[i] == next_city_ind[i + 1]]
         city_skip_ind += [i for i in range(len(next_city_ind)) if next_city_ind[i] >= len(cached_ids)]
-        included_cities = self.cities
+        included_cities = self.cities.copy()
         for i in sorted(city_skip_ind, reverse=True):
             del next_city_ind[i]
             del included_cities_ids[i]
@@ -571,6 +571,14 @@ class ListImageDataSet(BaseDataSet):
 
     def __getitem__(self, idx_im):
         return self.read_image(self.root_dir+self.im_paths[idx_im])
+
+if __name__== '__main__':
+    # FOR DEBUGGING PURPOSES
+    dataset = MSLSDataSetUnlabeled("../../data/", "ACVPR", transform=None, cache_size=10)
+    for _ in range(100):
+        dataset.load_cache()
+    cached_ids = [1164, 3000, 3018, 6084, 10207, 11353, 13336, 14798, 14919, 17373]
+    included_cities, transition_idx = dataset.find_city_transitions(cached_ids)
 
 
 
