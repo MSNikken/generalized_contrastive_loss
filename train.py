@@ -45,6 +45,7 @@ class TrainParser():
         self.parser.add_argument('--display_freq', type=int, default=10, help='frequency of showing training results on screen')
         self.parser.add_argument('--steps', type=int, default=52, help='Number of training steps. 52= 1epoch')
         self.parser.add_argument('--margin', type=float, default='.5', help='margin parameter for the contrastive loss')
+        self.parser.add_argument('--alpha', type=float, default='1', help='margin parameter for weighting predictive loss')
         self.parser.add_argument('--learning_rate', type=float, default='.1', help='learning rate')
         self.parser.add_argument('--lr_gamma', type=float, default='.1', help='learning rate decay')
         self.parser.add_argument('--step_size', type=float, default='25', help='Learning rate update frequency (in steps)')
@@ -106,7 +107,7 @@ def train(params):
     model = create_model(params.backbone, params.pool, last_layer=params.last_layer, norm=params.norm, p_gem=params.p, mode=mode)
     if torch.cuda.is_available():
         model = model.cuda()
-    loss = ContrastivePredictiveLoss(params.margin)
+    loss = ContrastivePredictiveLoss(params.margin, params.alpha)
     print(params.dataset)
     dataloader = create_msls_dataloader(params.dataset, params.root_dir, params.cities, transform=image_t,
                                         batch_size=params.batch_size, model=model)
