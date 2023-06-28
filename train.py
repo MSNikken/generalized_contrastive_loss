@@ -48,6 +48,8 @@ class TrainParser():
         self.parser.add_argument('--alpha', type=float, default='1', help='margin parameter for weighting predictive loss')
         self.parser.add_argument('--learning_rate', type=float, default='.1', help='learning rate')
         self.parser.add_argument('--lr_gamma', type=float, default='.1', help='learning rate decay')
+        self.parser.add_argument('--optimizer', type=str, default="SGD", help='[SGD|ADAM]')
+        self.parser.add_argument('--weight_decay', type=float, default=0, help='weight decay')
         self.parser.add_argument('--step_size', type=float, default='25', help='Learning rate update frequency (in steps)')
 
     def parse(self):
@@ -96,6 +98,14 @@ def val(params, model, image_t, best_metric, reference_metric="recall@5", metric
     return metrics, is_best
 
 
+def selectOptimizer(optimizer, parameters, learning_rate, weight_decay):
+    if optimizer == "SGD":
+        return optim.SGD(parameters, lr=learning_rate, weight_decay=weight_decay)
+    elif optimizer == "ADAM":
+        return optim.Adam(parameters, lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=weight_decay)
+    raise Exception('Optimizer name invalid')
+
+
 def train(params):
     image_size = [int(x) for x in (params.image_size).split(",")]
     best_metric = 0
@@ -117,8 +127,7 @@ def train(params):
         model = model.cuda()
         loss = loss.cuda()
     total_iterations = 0
-
-    optimizer = optim.SGD(model.parameters(), lr=params.learning_rate, weight_decay=0)
+    optimizer = selectOptimizer(params.optimizer, model.parameters(), params.learning_rate, params.weight_decay)
     scheduler = StepLR(optimizer, step_size=params.step_size, gamma=params.lr_gamma)
     init_step = 0
     optimizer.zero_grad()
