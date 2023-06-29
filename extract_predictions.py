@@ -241,10 +241,10 @@ def extract_msls_top_k(map_feats_file, query_feats_file, db_idx_file, q_idx_file
 
 def search(map_feats_file,query_feats_file, k=25):
     #load features
-    query_feats=np.load(query_feats_file).astype('float32')
-    map_feats=np.load(map_feats_file).astype('float32')
-    assert not any(query_feats.isnan()) and not any(map_feats.isnan()), "Features contain nan"
-    assert not any(query_feats.isinf()) and not any(map_feats.isinf()), "Features contain inf"
+    query_feats = np.load(query_feats_file).astype('float32')
+    map_feats = np.load(map_feats_file).astype('float32')
+    assert not any(np.isnan(query_feats)) and not any(np.isnan(map_feats)), "Features contain nan"
+    assert not any(np.isinf(query_feats)) and not any(np.isinf(map_feats)), "Features contain inf"
     if k is None:
         k = map_feats.shape[0]
     # build index and add map features
