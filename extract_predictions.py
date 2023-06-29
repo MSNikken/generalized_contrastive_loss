@@ -243,6 +243,8 @@ def search(map_feats_file,query_feats_file, k=25):
     #load features
     query_feats=np.load(query_feats_file).astype('float32')
     map_feats=np.load(map_feats_file).astype('float32')
+    assert not any(query_feats.isnan()) and not any(map_feats.isnan()), "Features contain nan"
+    assert not any(query_feats.isinf()) and not any(map_feats.isinf()), "Features contain inf"
     if k is None:
         k = map_feats.shape[0]
     # build index and add map features
@@ -250,6 +252,8 @@ def search(map_feats_file,query_feats_file, k=25):
     index.add(map_feats)
     # search top K
     D, I = index.search(query_feats.astype('float32'), k)
+    for i in I:
+        assert not i == -1, "No matching image found"
     return D, I
 
 
