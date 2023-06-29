@@ -243,8 +243,8 @@ def search(map_feats_file,query_feats_file, k=25):
     #load features
     query_feats = np.load(query_feats_file).astype('float32')
     map_feats = np.load(map_feats_file).astype('float32')
-    assert not any(np.isnan(query_feats)) and not any(np.isnan(map_feats)), "Features contain nan"
-    assert not any(np.isinf(query_feats)) and not any(np.isinf(map_feats)), "Features contain inf"
+    assert not np.isnan(query_feats).any() and not np.isnan(map_feats).any(), "Features contain nan"
+    assert not np.isinf(query_feats).any() and not np.isinf(map_feats).any(), "Features contain inf"
     if k is None:
         k = map_feats.shape[0]
     # build index and add map features
