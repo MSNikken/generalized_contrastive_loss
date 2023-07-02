@@ -253,7 +253,7 @@ def search(map_feats_file,query_feats_file, k=25):
     # search top K
     D, I = index.search(query_feats.astype('float32'), k)
     for i in I:
-        assert not i == -1, "No matching image found"
+        assert not (i == -1).any(), "No matching image found"
     return D, I
 
 
@@ -263,6 +263,15 @@ def extract_top_k(map_feats_file, query_feats_file, result_file, k):
 
 
 if __name__ == "__main__":
+    # DEBUGGING PURPOSES:
+    #m_feats_file = "./results/testexp_cph_database_features.npy"
+    #q_feats_file = "./results/testexp_cph_query_features.npy"
+    #m_idx_file = "../../data/train_val/cph/database.json"
+    #q_idx_file = "../../data/train_val/cph/query.json"
+    #ret_file = "./results/testexp_retrieved.csv"
+    #m_raw_file = "../../data/train_val/cph/database/raw.csv"
+    #extract_msls_top_k(m_feats_file, q_feats_file, m_idx_file, q_idx_file, ret_file, 25, m_raw_file)
+
     p = TestParser()
     p.parse()
     params = p.opt
